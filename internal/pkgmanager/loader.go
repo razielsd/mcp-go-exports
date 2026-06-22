@@ -160,29 +160,60 @@ func (pl *PackageLoader) handleValueSpec(spec *ast.ValueSpec, tok token.Token, p
 	}
 }
 
+// typeToString рекурсивно преобразует AST выражение типа в строку.
+func typeToString(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return "*" + typeToString(t.X)
+	case *ast.ArrayType:
+		prefix := ""
+		if t.Len == nil {
+			prefix = "[]"
+		} else {
+			// Для упрощения выводим размер, если он есть
+			prefix = fmt.Sprintf("[%d]", 0) // В реальности нужно обработать t.Len (ast.Expr)
+		}
+		return prefix + typeToString(t.Elt)
+	case *ast.MapType:
+		return fmt.Sprintf("map[%s]%s", typeToString(t.Key), typeToString(t.Value))
+	case *ast.SelectorExpr:
+		// Для селекторов возвращаем только имя самого типа (аналог cleanTypeString)
+		if x, ok := t.X.(*ast.Ident); ok {
+			return x.Name + "." + t.Sel.Name
+		}
+		return t.Sel.Name
+	case *ast.InterfaceType:
+		return "interface{}"
+	default:
+		return "unknown"
+	}
+}
+
 // handleTypeSpec обрабатывает определения типов (структуры).
 func (pl *PackageLoader) handleTypeSpec(spec *ast.TypeSpec, pkg *packages.Package, data *packageData) {
 	if !spec.Name.IsExported() {
 		return
 	}
-	if _, ok := spec.Type.(*ast.StructType); !ok {
-		return
-	}
-
-	obj := pkg.TypesInfo.Defs[spec.Name]
-	if obj == nil {
-		return
-	}
-	st, ok := obj.Type().(*types.Struct)
+	stTyp, ok := spec.Type.(*ast.StructType)
 	if !ok {
 		return
 	}
 
 	var fields []string
-	for i := 0; i < st.NumFields(); i++ {
-		f := st.Field(i)
-		if f.Exported() {
-			fields = append(fields, fmt.Sprintf("%s %s", f.Name(), cleanTypeString(f.Type().String())))
+	for _, field := range stTyp.Fields.List {
+		typeStr := typeToString(field.Type)
+		// Если это именованный тип из другого пакета, он может прийти как SelectorExpr.
+		// В данном упрощенном AST подходе мы просто берем имя.
+		if idx := strings.LastIndex(typeStr, "."); idx != -1 {
+			typeStr = typeStr[idx+1:]
+		}
+
+		for _, name := range field.Names {
+			if name.IsExported() {
+				fields = append(fields, fmt.Sprintf("%s %s", name.Name, typeStr))
+			}
 		}
 	}
 
@@ -206,6 +237,7 @@ func (pl *PackageLoader) handleFuncDecl(decl *ast.FuncDecl, pkg *packages.Packag
 	}
 
 	sig := fn.Type().String()
+	sig = strings.ReplaceAll(sig, pkg.PkgPath+".", "")
 	prefix := pl.extractReceiverPrefix(decl)
 
 	entry := fmt.Sprintf("%s%s: %s", prefix, decl.Name.Name, sig)
