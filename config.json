@@ -1,0 +1,12 @@
+{
+  "local": "~/go/pkg/mod/",
+  "data": "./data",
+  "default": {
+    "transport": "http"
+  },
+  "transport": {
+    "http": ":56001",
+    "sse": ":56002",
+    "stdio": "no options, for example"
+  }
+}

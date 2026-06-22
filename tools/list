@@ -1,0 +1,15 @@
+The mcp-go-exports server provides several tools to analyze Go packages from the local module cache:
+
+1. get_functions: Returns a list of exported functions and methods. 
+   - Optional filter 'structName': Filters only methods of a specific structure (e.g., 'Client').
+   - Optional filter 'functionName': Search for a specific function or method name.
+   Methods are prefixed with their receiver type (e.g., 'Client.Close') and include the full signature.
+
+2. get_constants: Provides a list of all exported constants in the package, including their cleaned types (e.g., 'MyConst int').
+
+3. get_structs: Lists exported structures and their public fields with types.
+   - Optional filter 'structName': Returns only the specific structure's definition.
+
+4. get_variables: Returns exported global variables and their corresponding cleaned types.
+
+Usage flow: The LLM should first use these tools to understand the API surface of a requested package before attempting to write code interacting with it.
